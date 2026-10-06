@@ -31,8 +31,8 @@ ese archivo y vuelve a importar.
 
 ## Uso
 
-En el menú: botón de encendido, deslizadores de brillo y temperatura, y el interruptor
-**Seguir la pantalla de la Mac**: con monitores externos conectados, apaga la barra al
+En el menú: On/Off, deslizadores de brillo y temperatura, y la opción
+**Follow Mac display**: con monitores externos conectados, apaga la barra al
 bloquear o dormir la pantalla y la vuelve a encender al regresar. Sin monitores no hace nada,
 pensado para escritorios donde los monitores se comparten con otra computadora.
 

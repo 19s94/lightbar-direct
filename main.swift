@@ -55,12 +55,11 @@ final class MenuApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var autoOff = false          // we switched it off on leaving; restore on return
     private var automaticItem: NSMenuItem!
     private var timer: Timer?
-    private let power = NSSwitch()
-    private let powerLabel = NSTextField(labelWithString: "Conectando…")
+    private let power = NSButton(title: "…", target: nil, action: nil)
+    private let powerSymbol = NSImageView(image: NSImage(systemSymbolName: "power", accessibilityDescription: nil)!)
     private let brightness = NSSlider(value: 100, minValue: 1, maxValue: 100, target: nil, action: nil)
     private let temperature = NSSlider(value: 4000, minValue: 2700, maxValue: 6500, target: nil, action: nil)
-    private let brightnessLabel = NSTextField(labelWithString: "")
-    private let temperatureLabel = NSTextField(labelWithString: "")
+    private let values = NSTextField(labelWithString: "")   // "72 % · 6500 K", top left
     private let status = NSMenuItem()   // only shown when there is an error
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -69,36 +68,43 @@ final class MenuApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
         NSApp.setActivationPolicy(.accessory)
         item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         item.button?.image = NSImage(systemSymbolName: "lightbulb", accessibilityDescription: "LightBar Direct")
-        item.button?.toolTip = "LightBar Direct · lámpara por Wi-Fi local"
+        item.button?.toolTip = "LightBar Direct · local Wi-Fi control"
         item.button?.setAccessibilityLabel("LightBar Direct")
         menu.delegate = self; menu.autoenablesItems = false
-        // Three compact rows: switch, brightness, temperature. 220 x 84.
-        let panel = NSView(frame: NSRect(x: 0, y: 0, width: 220, height: 84))
-        powerLabel.frame = NSRect(x: 14, y: 60, width: 140, height: 18)
-        powerLabel.font = NSFont.systemFont(ofSize: 13)
-        power.frame = NSRect(x: 168, y: 58, width: 40, height: 22)
-        power.controlSize = .small; power.target = self; power.action = #selector(togglePower)
-        power.setAccessibilityLabel("Encendido de la lámpara")
-        panel.addSubview(powerLabel); panel.addSubview(power)
-        func row(_ y: CGFloat, _ symbol: String, _ slider: NSSlider, _ value: NSTextField, _ selector: Selector, _ label: String) {
+        // Three compact rows: On/Off, brightness, temperature. 220 x 90.
+        let panel = NSView(frame: NSRect(x: 0, y: 0, width: 220, height: 90))
+        power.frame = NSRect(x: 150, y: 64, width: 58, height: 20)
+        power.isBordered = false; power.alignment = .right
+        power.font = NSFont.systemFont(ofSize: 12, weight: .semibold)
+        power.contentTintColor = .secondaryLabelColor
+        // The symbol is a fixed view behind the button, so it never shifts when "On" becomes "Off".
+        powerSymbol.frame = NSRect(x: 170, y: 68, width: 12, height: 12)
+        powerSymbol.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 11, weight: .bold)
+        powerSymbol.contentTintColor = .secondaryLabelColor
+        panel.addSubview(powerSymbol)
+        power.target = self; power.action = #selector(togglePower)
+        power.setAccessibilityLabel("Lamp power")
+        values.frame = NSRect(x: 14, y: 66, width: 130, height: 16)
+        values.font = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .regular); values.textColor = .secondaryLabelColor
+        panel.addSubview(power); panel.addSubview(values)
+        // Icons at x 14, sliders from 36 to 208: same right edge as the On/Off control.
+        func row(_ y: CGFloat, _ symbol: String, _ slider: NSSlider, _ selector: Selector, _ label: String) {
             let icon = NSImageView(image: NSImage(systemSymbolName: symbol, accessibilityDescription: label)!)
             icon.frame = NSRect(x: 14, y: y + 2, width: 16, height: 16); icon.contentTintColor = .secondaryLabelColor
-            slider.frame = NSRect(x: 36, y: y, width: 118, height: 20); slider.controlSize = .small
+            slider.frame = NSRect(x: 36, y: y, width: 172, height: 20); slider.controlSize = .small
             slider.target = self; slider.action = selector; slider.isContinuous = false
             slider.setAccessibilityLabel(label)
-            value.frame = NSRect(x: 158, y: y + 2, width: 50, height: 16); value.alignment = .right
-            value.font = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .regular); value.textColor = .secondaryLabelColor
-            for view in [icon, slider, value] { panel.addSubview(view) }
+            panel.addSubview(icon); panel.addSubview(slider)
         }
-        row(34, "sun.max", brightness, brightnessLabel, #selector(changeBrightness), "Brillo de la lámpara")
-        row(8, "thermometer.medium", temperature, temperatureLabel, #selector(changeTemperature), "Temperatura de la lámpara")
+        row(34, "sun.max", brightness, #selector(changeBrightness), "Lamp brightness")
+        row(8, "thermometer.medium", temperature, #selector(changeTemperature), "Lamp color temperature")
         let custom = NSMenuItem(); custom.view = panel; menu.addItem(custom)
         status.isEnabled = false; status.isHidden = true; menu.addItem(status)
         menu.addItem(.separator())
-        automaticItem = addItem("Seguir la pantalla de la Mac", #selector(toggleAutomatic))
+        automaticItem = addItem("Follow Mac display", #selector(toggleAutomatic))
         automaticItem.state = automatic ? .on : .off
-        automaticItem.toolTip = "Con monitores conectados: se apaga al bloquear o dormir la pantalla y vuelve a encenderse al regresar. Sin monitores no hace nada."
-        addItem("Salir", #selector(quit))
+        automaticItem.toolTip = "With external monitors connected: turns off when the screen locks or sleeps and back on when you return. Does nothing without monitors."
+        addItem("Quit", #selector(quit))
         item.menu = menu
         do { client = try LampClient(config: LampConfig.load()); refresh() }
         catch { showError(error) }
@@ -152,7 +158,6 @@ final class MenuApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
     private func showError(_ error: Error) {
         status.title = "⚠︎ " + error.localizedDescription; status.isHidden = false
-        if current == nil { powerLabel.stringValue = "Sin conexión" }
         item?.button?.toolTip = "LightBar Direct · \(error.localizedDescription)"
         enable(current != nil)
     }
@@ -168,15 +173,16 @@ final class MenuApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 switch result {
                 case .success(let state):
                     self.current = state
-                    self.power.state = state.on ? .on : .off
-                    self.powerLabel.stringValue = state.on ? "Encendida" : "Apagada"
+                    self.power.title = state.on ? "On" : "Off"
+                    self.power.contentTintColor = state.on ? .labelColor : .secondaryLabelColor
+                    self.powerSymbol.contentTintColor = state.on ? .labelColor : .secondaryLabelColor
+                    self.power.toolTip = state.on ? "Turn off" : "Turn on"
                     self.brightness.doubleValue = Double(state.brightness)
                     self.temperature.doubleValue = Double(state.temperature)
-                    self.brightnessLabel.stringValue = "\(state.brightness) %"
-                    self.temperatureLabel.stringValue = "\(state.temperature) K"
+                    self.values.stringValue = "\(state.brightness) % · \(state.temperature) K"
                     self.status.isHidden = true
                     self.item.button?.image = NSImage(systemSymbolName: state.on ? "lightbulb.fill" : "lightbulb", accessibilityDescription: "LightBar Direct")
-                    self.item.button?.toolTip = "LightBar Direct · \(host) · \(state.on ? "Encendida" : "Apagada") · \(state.brightness)% · \(state.temperature) K"
+                    self.item.button?.toolTip = "LightBar Direct · \(host) · \(state.on ? "On" : "Off") · \(state.brightness)% · \(state.temperature) K"
                     self.enable(true)
                     self.power.superview?.needsDisplay = true
                 case .failure(let error): self.showError(error)
@@ -186,7 +192,7 @@ final class MenuApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
     @objc func refresh() { run { try $0.state() } }
     @objc func togglePower() {
-        let on = power.state == .on; run { try $0.set(on: on) }
+        guard let state = current else { return }; run { try $0.set(on: !state.on) }
     }
     @objc func changeBrightness() {
         let value = Int(brightness.doubleValue.rounded()); run { try $0.set(brightness: value) }
