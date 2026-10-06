@@ -133,6 +133,7 @@ final class MenuApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
     @objc func toggleAutomatic() { automatic.toggle() }
     @objc func deskLeft() {
+        NSLog("Follow display: left (automatic=\(automatic) atDesk=\(atDesk) autoOff=\(autoOff))")
         guard automatic, atDesk, !autoOff else { return }
         run { [weak self] client in
             let state = try client.state()
@@ -142,6 +143,7 @@ final class MenuApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
     @objc func deskBack() {
+        NSLog("Follow display: back (automatic=\(automatic) atDesk=\(atDesk) autoOff=\(autoOff))")
         guard automatic, atDesk, autoOff else { return }
         autoOff = false
         run { try $0.set(on: true) }
@@ -157,6 +159,7 @@ final class MenuApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
         power.isEnabled = value; brightness.isEnabled = value; temperature.isEnabled = value
     }
     private func showError(_ error: Error) {
+        NSLog("Lamp error: %@", error.localizedDescription)
         status.title = "⚠︎ " + error.localizedDescription; status.isHidden = false
         item?.button?.toolTip = "LightBar Direct · \(error.localizedDescription)"
         enable(current != nil)
